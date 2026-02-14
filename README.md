@@ -117,7 +117,7 @@ API Gateway используется как реверс прокси для А�
 
 REST выбран для этих сценариев, потому что клиент (Web App, Mobile App или другой микросервис через API Gateway) ожидает получить результат в рамках одного запроса — список устройств, показания датчиков или подтверждение приёма команды.
 
-**Async API (Kafka)** — для асинхронного событийно-ориентированного взаимодействия:
+**Async API (Kafka)** — для асинхронного событийно-ориентированного взаимодействия и балансировки нагрузки:
 - `device.telemetry` — поток событий телеметрии с устройств. Device API Gateway публикует, подписчики — Telemetry Service (запись в ClickHouse) и Automation Service (оценка правил).
 - `device.commands` — поток команд управления устройствами. Публикуют Device Commands и Automation Service, подписчик — Device Commands (доставка на физическое устройство через MQTT/HTTPS).
 
@@ -127,10 +127,10 @@ Kafka выбран для этих сценариев, потому что:
 
 ### 2. Документация API
 
-- **REST API (OpenAPI 3.0):** [api/openapi.yaml](api/openapi.yaml)
-- **Async API (Kafka):** [api/asyncapi.yaml](api/asyncapi.yaml)
+- **REST API (OpenAPI 3.0):** [api/openapi.yaml](api/openapi.yaml) | [Open in Swagger](https://editor.swagger.io/?url=https://raw.githubusercontent.com/jkurb/architecture-pro-warmhouse/refs/heads/warmhouse/api/openapi.yaml)
+- **Async API (Kafka):** [api/asyncapi.yaml](api/asyncapi.yaml) | [Open in Asyncapi](https://studio.asyncapi.com/?url=https://editor.swagger.io/?url=https://raw.githubusercontent.com/jkurb/architecture-pro-warmhouse/refs/heads/warmhouse/api/asyncapi.yaml)
 
-#### REST-эндпоинты (сводка)
+#### REST-эндпоинты
 
 | Метод  | Эндпоинт                        | Микросервис      | Описание                          |
 |--------|----------------------------------|------------------|-----------------------------------|
@@ -141,7 +141,7 @@ Kafka выбран для этих сценариев, потому что:
 | GET    | `/devices/{deviceId}/telemetry`  | Telemetry        | Телеметрия устройства за период   |
 | POST   | `/devices/{deviceId}/commands`   | Device Commands  | Отправка команды на устройство    |
 
-#### Kafka-каналы (сводка)
+#### Kafka-каналы
 
 | Канал              | Продюсеры                        | Консьюмеры                         |
 |--------------------|----------------------------------|-------------------------------------|
