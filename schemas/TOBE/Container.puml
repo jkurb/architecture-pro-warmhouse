@@ -18,7 +18,7 @@ Container_Boundary(WarmHouseSystem, "WarmHouseSystem") {
   Container(APIGW, "API Gateway", "Java, SpringBoot", "API Шлюз")
   Container(APIGWDevice, "Device API Gateway", "Java, SpringBoot", "API Шлюз Устройств")  
   ContainerDb(Database, "Database", "MongoDB", "Хранение метаданных об устройствах")
-  ContainerQueue(MessageQueue, "MessageQueue", "Kafka", "Шина данных")
+  ContainerQueue(MessageQueue, "MessageQueue", "Kafka", "Шина данных")  
   Container(DeviceRegistry, "Device Registry", "Java, SpringBoot", "Учет устройств в системе")
   Container(Telemetry, "Telemetry", "Java, SpringBoot", "Управление телеметрией, мониторинг")
   ContainerDb(TelemetryStore, "Telemetry Store", "ClickHouse", "Храние событий, телеметрии с устройств")

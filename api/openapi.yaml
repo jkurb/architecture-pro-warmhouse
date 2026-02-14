@@ -1,0 +1,543 @@
+openapi: 3.0.3
+info:
+    title: Теплый дом — REST API
+    description: |
+        REST API платформы «Теплый дом».
+        Описывает синхронные эндпоинты микросервисов: Device Registry, Telemetry, Device Commands.
+        Все запросы проходят через API Gateway и требуют JWT-токен в заголовке Authorization.
+    version: 1.0.0
+
+servers:
+    - url: https://api.warmhouse.example.com/v1
+      description: Production API Gateway
+
+tags:
+    - name: Device Registry
+      description: Управление устройствами (CRUD)
+    - name: Telemetry
+      description: Получение телеметрии с устройств
+    - name: Device Commands
+      description: Отправка команд на устройства
+
+paths:
+    # ==================== Device Registry ====================
+    /devices:
+        get:
+            tags: [Device Registry]
+            summary: Получить список устройств дома
+            description: Возвращает список устройств, зарегистрированных в указанном доме.
+            operationId: getDevices
+            parameters:
+                - name: house_id
+                  in: query
+                  required: true
+                  description: Идентификатор дома
+                  schema:
+                      type: string
+                      format: uuid
+                - name: area_id
+                  in: query
+                  required: false
+                  description: Фильтр по зоне/комнате
+                  schema:
+                      type: string
+                      format: uuid
+                - name: status
+                  in: query
+                  required: false
+                  description: Фильтр по статусу устройства
+                  schema:
+                      type: string
+                      enum: [online, offline, error]
+            responses:
+                "200":
+                    description: Список устройств
+                    content:
+                        application/json:
+                            schema:
+                                type: array
+                                items:
+                                    $ref: "#/components/schemas/Device"
+                            examples:
+                                devices_list:
+                                    summary: Два устройства в доме
+                                    value:
+                                        - id: "d290f1ee-6c54-4b01-90e6-d701748f0851"
+                                          type_id: "a1b2c3d4-0001-0000-0000-000000000001"
+                                          house_id: "b100a200-1000-4000-a000-000000000001"
+                                          area_id: "a000b300-1000-4000-b000-000000000001"
+                                          serial_number: "SN-THERMO-001"
+                                          status: "online"
+                                          name: "Термостат гостиная"
+                                          vendor: "WarmTech"
+                                          firmware_version: "2.1.0"
+                                          controls:
+                                              - name: "target_temperature"
+                                                type: "range"
+                                                value: 22.5
+                                          sensors:
+                                              - name: "temperature"
+                                                type: "temperature"
+                                                unit: "°C"
+                                          created_at: "2025-11-01T10:00:00Z"
+                                        - id: "d290f1ee-6c54-4b01-90e6-d701748f0852"
+                                          type_id: "a1b2c3d4-0001-0000-0000-000000000002"
+                                          house_id: "b100a200-1000-4000-a000-000000000001"
+                                          area_id: null
+                                          serial_number: "SN-RELAY-042"
+                                          status: "offline"
+                                          name: "Реле отопления"
+                                          vendor: "HeatCorp"
+                                          firmware_version: "1.0.3"
+                                          controls:
+                                              - name: "power"
+                                                type: "switch"
+                                                value: false
+                                          sensors: []
+                                          created_at: "2025-11-05T14:30:00Z"
+                "401":
+                    $ref: "#/components/responses/Unauthorized"
+
+        post:
+            tags: [Device Registry]
+            summary: Зарегистрировать новое устройство
+            description: Регистрирует устройство в системе и привязывает его к дому.
+            operationId: createDevice
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/DeviceCreate"
+                        examples:
+                            new_thermostat:
+                                summary: Регистрация термостата
+                                value:
+                                    type_id: "a1b2c3d4-0001-0000-0000-000000000001"
+                                    house_id: "b100a200-1000-4000-a000-000000000001"
+                                    area_id: "a000b300-1000-4000-b000-000000000001"
+                                    serial_number: "SN-THERMO-099"
+                                    name: "Термостат спальня"
+            responses:
+                "201":
+                    description: Устройство зарегистрировано
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/Device"
+                            examples:
+                                created_device:
+                                    summary: Созданное устройство
+                                    value:
+                                        id: "d290f1ee-6c54-4b01-90e6-d701748f0900"
+                                        type_id: "a1b2c3d4-0001-0000-0000-000000000001"
+                                        house_id: "b100a200-1000-4000-a000-000000000001"
+                                        area_id: "a000b300-1000-4000-b000-000000000001"
+                                        serial_number: "SN-THERMO-099"
+                                        status: "offline"
+                                        name: "Термостат спальня"
+                                        vendor: "WarmTech"
+                                        firmware_version: "2.1.0"
+                                        controls:
+                                            - name: "target_temperature"
+                                              type: "range"
+                                              value: 20.0
+                                        sensors:
+                                            - name: "temperature"
+                                              type: "temperature"
+                                              unit: "°C"
+                                        created_at: "2026-02-14T12:00:00Z"
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "401":
+                    $ref: "#/components/responses/Unauthorized"
+
+    /devices/{deviceId}:
+        get:
+            tags: [Device Registry]
+            summary: Получить информацию об устройстве
+            description: Возвращает полные данные об устройстве по его идентификатору.
+            operationId: getDevice
+            parameters:
+                - $ref: "#/components/parameters/DeviceId"
+            responses:
+                "200":
+                    description: Данные устройства
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/Device"
+                "401":
+                    $ref: "#/components/responses/Unauthorized"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+
+        patch:
+            tags: [Device Registry]
+            summary: Обновить данные устройства
+            description: |
+                Частичное обновление данных устройства: имя, привязка к зоне, статус.
+            operationId: updateDevice
+            parameters:
+                - $ref: "#/components/parameters/DeviceId"
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/DeviceUpdate"
+                        examples:
+                            move_to_area:
+                                summary: Перемещение устройства в другую зону
+                                value:
+                                    name: "Термостат кухня"
+                                    area_id: "a000b300-1000-4000-b000-000000000002"
+            responses:
+                "200":
+                    description: Устройство обновлено
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/Device"
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "401":
+                    $ref: "#/components/responses/Unauthorized"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+
+    # ==================== Telemetry ====================
+    /devices/{deviceId}/telemetry:
+        get:
+            tags: [Telemetry]
+            summary: Получить телеметрию устройства
+            description: |
+                Возвращает записи телеметрии (показания датчиков) устройства за указанный период.
+                Данные отсортированы по времени (от новых к старым).
+            operationId: getDeviceTelemetry
+            parameters:
+                - $ref: "#/components/parameters/DeviceId"
+                - name: metric_name
+                  in: query
+                  required: false
+                  description: Фильтр по имени метрики (например, temperature, humidity)
+                  schema:
+                      type: string
+                - name: from
+                  in: query
+                  required: false
+                  description: Начало периода (ISO 8601)
+                  schema:
+                      type: string
+                      format: date-time
+                - name: to
+                  in: query
+                  required: false
+                  description: Конец периода (ISO 8601)
+                  schema:
+                      type: string
+                      format: date-time
+                - name: limit
+                  in: query
+                  required: false
+                  description: Максимальное количество записей (по умолчанию 100)
+                  schema:
+                      type: integer
+                      default: 100
+                      maximum: 1000
+            responses:
+                "200":
+                    description: Данные телеметрии
+                    content:
+                        application/json:
+                            schema:
+                                type: array
+                                items:
+                                    $ref: "#/components/schemas/TelemetryData"
+                            examples:
+                                temperature_readings:
+                                    summary: Показания температуры за последний час
+                                    value:
+                                        - id: 100500
+                                          device_id: "d290f1ee-6c54-4b01-90e6-d701748f0851"
+                                          timestamp: "2026-02-14T11:55:00Z"
+                                          metric_name: "temperature"
+                                          value: 22.3
+                                          unit: "°C"
+                                        - id: 100499
+                                          device_id: "d290f1ee-6c54-4b01-90e6-d701748f0851"
+                                          timestamp: "2026-02-14T11:50:00Z"
+                                          metric_name: "temperature"
+                                          value: 22.1
+                                          unit: "°C"
+                "401":
+                    $ref: "#/components/responses/Unauthorized"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+
+    # ==================== Device Commands ====================
+    /devices/{deviceId}/commands:
+        post:
+            tags: [Device Commands]
+            summary: Отправить команду на устройство
+            description: |
+                Отправляет команду управления на устройство.
+                Команда ставится в очередь (Kafka) и доставляется на устройство асинхронно.
+                В ответе возвращается идентификатор команды и её статус.
+            operationId: sendDeviceCommand
+            parameters:
+                - $ref: "#/components/parameters/DeviceId"
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/DeviceCommand"
+                        examples:
+                            set_temperature:
+                                summary: Установить целевую температуру
+                                value:
+                                    command: "set_control"
+                                    params:
+                                        control_name: "target_temperature"
+                                        value: 24.0
+                            power_off:
+                                summary: Выключить устройство
+                                value:
+                                    command: "power"
+                                    params:
+                                        value: false
+            responses:
+                "202":
+                    description: Команда принята в обработку
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/CommandResult"
+                            examples:
+                                accepted:
+                                    summary: Команда принята
+                                    value:
+                                        command_id: "a1b2c3d4-5678-9abc-def0-123456789abc"
+                                        status: "pending"
+                                        created_at: "2026-02-14T12:05:00Z"
+                "400":
+                    $ref: "#/components/responses/BadRequest"
+                "401":
+                    $ref: "#/components/responses/Unauthorized"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+
+components:
+    securitySchemes:
+        bearerAuth:
+            type: http
+            scheme: bearer
+            bearerFormat: JWT
+
+    parameters:
+        DeviceId:
+            name: deviceId
+            in: path
+            required: true
+            description: Уникальный идентификатор устройства
+            schema:
+                type: string
+                format: uuid
+
+    schemas:
+        Device:
+            type: object
+            required:
+                [id, type_id, house_id, serial_number, status, name, created_at]
+            properties:
+                id:
+                    type: string
+                    format: uuid
+                    description: Уникальный идентификатор устройства
+                type_id:
+                    type: string
+                    format: uuid
+                    description: Идентификатор типа устройства
+                house_id:
+                    type: string
+                    format: uuid
+                    description: Идентификатор дома
+                area_id:
+                    type: string
+                    format: uuid
+                    nullable: true
+                    description: Идентификатор зоны/комнаты (опционально)
+                serial_number:
+                    type: string
+                    description: Серийный номер устройства
+                status:
+                    type: string
+                    enum: [online, offline, error]
+                    description: Текущий статус устройства
+                name:
+                    type: string
+                    description: Пользовательское имя устройства
+                vendor:
+                    type: string
+                    description: Производитель
+                firmware_version:
+                    type: string
+                    description: Версия прошивки
+                controls:
+                    type: array
+                    description: Элементы управления устройства
+                    items:
+                        type: object
+                        properties:
+                            name:
+                                type: string
+                            type:
+                                type: string
+                            value: {}
+                sensors:
+                    type: array
+                    description: Датчики устройства
+                    items:
+                        type: object
+                        properties:
+                            name:
+                                type: string
+                            type:
+                                type: string
+                            unit:
+                                type: string
+                created_at:
+                    type: string
+                    format: date-time
+
+        DeviceCreate:
+            type: object
+            required: [type_id, house_id, serial_number, name]
+            properties:
+                type_id:
+                    type: string
+                    format: uuid
+                house_id:
+                    type: string
+                    format: uuid
+                area_id:
+                    type: string
+                    format: uuid
+                    nullable: true
+                serial_number:
+                    type: string
+                name:
+                    type: string
+
+        DeviceUpdate:
+            type: object
+            properties:
+                name:
+                    type: string
+                area_id:
+                    type: string
+                    format: uuid
+                    nullable: true
+                status:
+                    type: string
+                    enum: [online, offline, error]
+
+        TelemetryData:
+            type: object
+            required: [id, device_id, timestamp, metric_name, value, unit]
+            properties:
+                id:
+                    type: integer
+                    format: int64
+                device_id:
+                    type: string
+                    format: uuid
+                timestamp:
+                    type: string
+                    format: date-time
+                metric_name:
+                    type: string
+                    description: Имя метрики (temperature, humidity и т.д.)
+                value:
+                    type: number
+                    format: double
+                unit:
+                    type: string
+                    description: Единица измерения
+
+        DeviceCommand:
+            type: object
+            required: [command, params]
+            properties:
+                command:
+                    type: string
+                    description: Тип команды (set_control, power, reboot и т.д.)
+                params:
+                    type: object
+                    description: Параметры команды
+                    additionalProperties: true
+
+        CommandResult:
+            type: object
+            properties:
+                command_id:
+                    type: string
+                    format: uuid
+                    description: Идентификатор команды для отслеживания
+                status:
+                    type: string
+                    enum: [pending, delivered, executed, failed]
+                created_at:
+                    type: string
+                    format: date-time
+
+        Error:
+            type: object
+            required: [code, message]
+            properties:
+                code:
+                    type: integer
+                message:
+                    type: string
+                details:
+                    type: string
+
+    responses:
+        BadRequest:
+            description: Некорректный запрос
+            content:
+                application/json:
+                    schema:
+                        $ref: "#/components/schemas/Error"
+                    examples:
+                        validation_error:
+                            value:
+                                code: 400
+                                message: "Ошибка валидации"
+                                details: "Поле serial_number обязательно"
+        Unauthorized:
+            description: Не авторизован — невалидный или отсутствующий токен
+            content:
+                application/json:
+                    schema:
+                        $ref: "#/components/schemas/Error"
+                    examples:
+                        unauthorized:
+                            value:
+                                code: 401
+                                message: "Требуется авторизация"
+        NotFound:
+            description: Ресурс не найден
+            content:
+                application/json:
+                    schema:
+                        $ref: "#/components/schemas/Error"
+                    examples:
+                        not_found:
+                            value:
+                                code: 404
+                                message: "Устройство не найдено"
+
+security:
+    - bearerAuth: []

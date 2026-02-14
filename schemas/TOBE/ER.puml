@@ -1,0 +1,109 @@
+@startuml
+title ER-диаграмма — логическая модель данных
+
+skinparam linetype ortho
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontSize 11
+
+' ========== Справочники (Catalog) ==========
+entity "DeviceType" as device_type {
+  * id : UUID <<PK>>
+  --
+  name : String
+  description : String
+  category : String
+  capabilities : Object
+  created_at : DateTime
+}
+
+entity "Module" as module {
+  * id : UUID <<PK>>
+  --
+  name : String
+  description : String
+  module_type : String
+  created_at : DateTime
+}
+
+entity "User" as user {
+  * id : UUID <<PK>>
+  --
+  email : String
+  name : String
+  created_at : DateTime
+}
+
+entity "House" as house {
+  * id : UUID <<PK>>
+  --
+  name : String
+  address : String
+  created_at : DateTime
+}
+
+entity "Area" as area {
+  * id : UUID <<PK>>
+  --
+  * house_id : UUID <<FK>>
+  name : String
+  created_at : DateTime
+}
+
+entity "Device" as device {
+  * id : UUID <<PK>>
+  --
+  * type_id : UUID <<FK>>
+  * house_id : UUID <<FK>>
+  area_id : UUID <<FK>>
+  serial_number : String
+  status : String
+  name : String
+  vendor : String
+  firmware_version : String
+  controls : Object
+  sensors : Object
+  created_at : DateTime
+}
+
+entity "TelemetryData" as telemetry {
+  * id : Integer <<PK>>
+  --
+  * device_id : UUID <<FK>>
+  timestamp : DateTime
+  metric_name : String
+  value : Number
+  unit : String
+}
+
+entity "Scenario" as scenario {
+  * id : UUID <<PK>>
+  --
+  * house_id : UUID <<FK>>
+  name : String
+  trigger_type : String
+  trigger_config : Object
+  conditions : Object
+  actions : Object
+  enabled : Boolean
+  created_at : DateTime
+}
+
+
+user }o--o{ house : "содержит"
+house ||--o{ area : "зоны"
+area ||--o{ device : "содержит"
+house ||--o{ device : "содержит"
+
+device_type ||--o{ device : "тип"
+
+device ||--o{ telemetry : "генерирует"
+
+house ||--o{ scenario : "сценарии"
+
+' Логические связи: сценарий ссылается на устройства и метрики в trigger_config / conditions / actions (без FK)
+scenario }o..o{ device : "использует"
+scenario }o..o{ telemetry : "условия по метрикам"
+
+device_type }o--o{ module : "может включать"
+
+@enduml

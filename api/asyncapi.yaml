@@ -1,0 +1,197 @@
+asyncapi: 2.6.0
+info:
+    title: Теплый дом — Async API (Kafka)
+    description: |
+        Асинхронное взаимодействие микросервисов платформы «Теплый дом» через Kafka.
+        Описывает события телеметрии с устройств и команды управления устройствами.
+    version: 1.0.0
+
+servers:
+    production:
+        url: kafka.warmhouse.internal:9092
+        protocol: kafka
+        description: Kafka-кластер
+
+channels:
+    device.telemetry:
+        description: |
+            Канал событий телеметрии.
+            Устройства отправляют показания датчиков через Device API Gateway,
+            который публикует их в этот топик. Подписчики: Telemetry Service, Automation Service.
+        subscribe:
+            operationId: onTelemetryEvent
+            summary: Получение событий телеметрии с устройств
+            message:
+                $ref: "#/components/messages/TelemetryEvent"
+        publish:
+            operationId: publishTelemetryEvent
+            summary: Публикация события телеметрии (Device API Gateway)
+            message:
+                $ref: "#/components/messages/TelemetryEvent"
+
+    device.commands:
+        description: |
+            Канал команд управления устройствами.
+            Микросервис Device Commands публикует команды, которые затем доставляются
+            на физические устройства через MQTT/HTTPS. Automation Service также может
+            публиковать команды в результате срабатывания сценариев.
+        subscribe:
+            operationId: onDeviceCommand
+            summary: Получение команд для доставки на устройства (Device Commands)
+            message:
+                $ref: "#/components/messages/DeviceCommandEvent"
+        publish:
+            operationId: publishDeviceCommand
+            summary: Публикация команды на устройство
+            message:
+                $ref: "#/components/messages/DeviceCommandEvent"
+
+components:
+    messages:
+        TelemetryEvent:
+            name: TelemetryEvent
+            title: Событие телеметрии
+            summary: Показание датчика устройства
+            contentType: application/json
+            payload:
+                $ref: "#/components/schemas/TelemetryEventPayload"
+            examples:
+                - name: temperature_reading
+                  summary: Показание температуры с термостата
+                  payload:
+                      event_id: "a1b2c3d4-1111-2222-3333-444455556666"
+                      device_id: "d290f1ee-6c54-4b01-90e6-d701748f0851"
+                      house_id: "b100a200-1000-4000-a000-000000000001"
+                      metric_name: "temperature"
+                      value: 22.3
+                      unit: "°C"
+                      timestamp: "2026-02-14T11:55:00Z"
+                - name: humidity_reading
+                  summary: Показание влажности
+                  payload:
+                      event_id: "b2c3d4e5-2222-3333-4444-555566667777"
+                      device_id: "d290f1ee-6c54-4b01-90e6-d701748f0853"
+                      house_id: "b100a200-1000-4000-a000-000000000001"
+                      metric_name: "humidity"
+                      value: 45.0
+                      unit: "%"
+                      timestamp: "2026-02-14T11:55:05Z"
+
+        DeviceCommandEvent:
+            name: DeviceCommandEvent
+            title: Команда устройству
+            summary: Команда управления, направленная на физическое устройство
+            contentType: application/json
+            payload:
+                $ref: "#/components/schemas/DeviceCommandPayload"
+            examples:
+                - name: set_temperature
+                  summary: Установка целевой температуры
+                  payload:
+                      command_id: "a1b2c3d4-5678-9abc-def0-123456789abc"
+                      device_id: "d290f1ee-6c54-4b01-90e6-d701748f0851"
+                      house_id: "b100a200-1000-4000-a000-000000000001"
+                      command: "set_control"
+                      params:
+                          control_name: "target_temperature"
+                          value: 24.0
+                      source: "user"
+                      timestamp: "2026-02-14T12:05:00Z"
+                - name: automation_power_on
+                  summary: Включение устройства по сценарию автоматизации
+                  payload:
+                      command_id: "c3d4e5f6-9999-aaaa-bbbb-ccccddddeeee"
+                      device_id: "d290f1ee-6c54-4b01-90e6-d701748f0852"
+                      house_id: "b100a200-1000-4000-a000-000000000001"
+                      command: "power"
+                      params:
+                          value: true
+                      source: "automation"
+                      scenario_id: "11112222-3333-4444-5555-666677778888"
+                      timestamp: "2026-02-14T12:10:00Z"
+
+    schemas:
+        TelemetryEventPayload:
+            type: object
+            required:
+                [
+                    event_id,
+                    device_id,
+                    house_id,
+                    metric_name,
+                    value,
+                    unit,
+                    timestamp,
+                ]
+            properties:
+                event_id:
+                    type: string
+                    format: uuid
+                    description: Уникальный идентификатор события
+                device_id:
+                    type: string
+                    format: uuid
+                    description: Идентификатор устройства-источника
+                house_id:
+                    type: string
+                    format: uuid
+                    description: Идентификатор дома
+                metric_name:
+                    type: string
+                    description: Имя метрики (temperature, humidity, pressure и т.д.)
+                value:
+                    type: number
+                    format: double
+                    description: Значение показания
+                unit:
+                    type: string
+                    description: Единица измерения
+                timestamp:
+                    type: string
+                    format: date-time
+                    description: Время снятия показания на устройстве
+
+        DeviceCommandPayload:
+            type: object
+            required:
+                [
+                    command_id,
+                    device_id,
+                    house_id,
+                    command,
+                    params,
+                    source,
+                    timestamp,
+                ]
+            properties:
+                command_id:
+                    type: string
+                    format: uuid
+                    description: Уникальный идентификатор команды
+                device_id:
+                    type: string
+                    format: uuid
+                    description: Целевое устройство
+                house_id:
+                    type: string
+                    format: uuid
+                    description: Идентификатор дома
+                command:
+                    type: string
+                    description: Тип команды (set_control, power, reboot)
+                params:
+                    type: object
+                    description: Параметры команды
+                    additionalProperties: true
+                source:
+                    type: string
+                    enum: [user, automation, system]
+                    description: Источник команды
+                scenario_id:
+                    type: string
+                    format: uuid
+                    description: ID сценария (если source = automation)
+                timestamp:
+                    type: string
+                    format: date-time
+                    description: Время создания команды
