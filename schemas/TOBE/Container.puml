@@ -1,0 +1,67 @@
+@startuml
+title Теплый дом TO-BE Context 
+
+top to bottom direction
+
+!includeurl https://raw.githubusercontent.com/RicardoNiepel/C4-PlantUML/master/C4_Component.puml
+
+Person(user, "Пользователь", "Пользователь системы Теплый дом")
+Person(support, "Поддержка", "Команда по обслуживанию клиентов")
+Person(sales, "Отдел продаж", "Команда по продажам и маркетингу")
+
+System(WarmHouseSystem, "Темплый дом", "SaaS-платформа управления умными домами")
+
+Container_Boundary(WarmHouseSystem, "WarmHouseSystem") {
+  Container(WebApp, "Web App", "React, TypeScript", "Личный кабинет пользователя")
+  Container(MobileApp, "Mobile App", "Kotlin, Swift", "Мобильное приложение")
+  Container(BackOffice, "Back Office", "React, TypeScript, Java", "Web Admin/CMS")
+  Container(APIGW, "API Gateway", "Java, SpringBoot", "API Шлюз")
+  Container(APIGWDevice, "Device API Gateway", "Java, SpringBoot", "API Шлюз Устройств")  
+  ContainerDb(Database, "Database", "MongoDB", "Хранение метаданных об устройствах")
+  ContainerQueue(MessageQueue, "MessageQueue", "Kafka", "Шина данных")
+  Container(DeviceRegistry, "Device Registry", "Java, SpringBoot", "Учет устройств в системе")
+  Container(Telemetry, "Telemetry", "Java, SpringBoot", "Управление телеметрией, мониторинг")
+  ContainerDb(TelemetryStore, "Telemetry Store", "ClickHouse", "Храние событий, телеметрии с устройств")
+  Container(Automation, "Automation", "Java, SpringBoot", "Управление автоматизациями")
+  ContainerDb(AutomationStore, "Automation Store", "MongoDB", "Хранение сценариев автоматизиций")
+  Container(UserProfile, "UserProfile", "Java, SpringBoot", "Профиль пользователя, дома")
+  ContainerDb(UserProfileStore, "User Store", "PostgreSQL", "Данные пользователей")
+  Container(Catalog, "Catalog", "Java, SpringBoot", "Каталог устройств и модулей")
+  ContainerDb(CatalogStore, "Catalog Store", "MongoDB", "Каталог устройств")
+  Container(Auth, "Auth", "Keycloak", "Авторизация и права доступа")
+  ContainerDb(AuthStore, "Auth Store", "PostgreSQL", "Идентификация и авторизация")
+  Container(DeviceCommands, "Device Commands", "Java, SpringBoot", "Отправка команд на устройства")
+}
+
+System_Ext(devices, "Внешние устройства", "Подерживаемые устройства - датчики, реле, модули управления")
+
+Rel(user, WebApp, "Использование системы", "UI")
+Rel(user, MobileApp, "Использование системы", "UI")
+Rel(MobileApp, APIGW, "Управление устройствами, профилем пользователя, просмотр каталога устройств", "Web API/REST")
+Rel(WebApp, APIGW, "Управление устройствами, профилем пользователя, просмотр каталога устройств", "Web API/REST")
+Rel(support, BackOffice, "Администрирование, просмотр логов, поддержка", "UI")
+Rel(sales, BackOffice, "Наполнение каталога устройств, управление витриной", "UI")
+Rel(devices, APIGWDevice, "Отправка телеметрии", "MQTT / HTTPS")
+Rel(APIGW, DeviceRegistry, "CRUD устройств, команды управления", "Web API/REST")
+Rel(APIGWDevice, MessageQueue, "Публикация событий с устройств", "Messaging/Kafka")
+Rel(DeviceRegistry, Database, "Чтение и запись метаданных устройств", "DB")
+Rel(Telemetry, MessageQueue, "Чтение событий устройств, публикация агрегатов", "Messaging/Kafka")
+Rel(Telemetry, TelemetryStore, "Запись и запросы телеметрии", "DB")
+Rel(APIGW, Telemetry, "Запрос текущих показаний, метрик, истории", "Web API/REST")
+Rel(APIGW, Automation, "CRUD сценариев, запрос статуса автоматизаций", "Web API/REST")
+Rel(APIGW, UserProfile, "Профиль пользователя, дома, привязки устройств", "Web API/REST")
+Rel(APIGW, Catalog, "Каталог устройств и модулей, витрина", "Web API/REST")
+Rel(APIGW, Auth, "Проверка токена, логин, регистрация", "OAuth2/OIDC, JWT, REST")
+Rel(APIGW, DeviceCommands, "Отправка команд", "Web API/REST")
+Rel(BackOffice, APIGW, "Админ-операции, каталог, поддержка", "Web API/REST")
+Rel(Automation, AutomationStore, "Хранение и чтение сценариев автоматизаций", "DB")
+Rel(UserProfile, UserProfileStore, "Данные пользователей, домов, привязок", "DB/SQL")
+Rel(Catalog, CatalogStore, "Каталог устройств, CMS-данные", "DB")
+Rel(Auth, AuthStore, "Пользователи, сессии, роли, клиенты", "DB/SQL")
+Rel(DeviceCommands, MessageQueue, "Отправка команд", "Messaging/Kafka")
+Rel(Automation, MessageQueue, "Чтение событий устройств", "Messaging/Kafka")
+Rel(Automation, MessageQueue, "Отправка действий на устройства", "Messaging/Kafka")
+Rel(DeviceCommands, devices, "Отправка команд", "MQTT / HTTPS")
+Rel(DeviceCommands, DeviceRegistry, "Получение данных об устройстве", "Web API/REST")
+
+@enduml

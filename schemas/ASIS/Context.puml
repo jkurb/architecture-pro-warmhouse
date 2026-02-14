@@ -1,0 +1,18 @@
+@startuml
+title Тёплый дом AS-IS Context 
+
+top to bottom direction
+
+!includeurl https://raw.githubusercontent.com/RicardoNiepel/C4-PlantUML/master/C4_Component.puml
+
+Person(user, "Пользователь", "Пользователь системы Теплый дом")
+Person(support, "Поддержка", "Команда по обслуживанию клиентов")
+System(WarmHouseSystem, "Темплый дом", "Система управления теплым домом")
+
+System_Ext(devices, "Внешние устройства", "Подерживаемые устройства - датчики, реле, модули управления")
+
+Rel(user, WarmHouseSystem, "Управление отопление, просмотр температуры")
+Rel(support, WarmHouseSystem, "Подлкючение устройств")
+Rel(WarmHouseSystem, devices, "Опрос температуры, команды вкл/выкл")
+
+@enduml

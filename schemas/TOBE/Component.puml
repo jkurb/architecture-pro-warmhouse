@@ -1,0 +1,41 @@
+@startuml
+title Automation Service — Component Diagram
+
+top to bottom direction
+skinparam componentStyle rectangle
+
+!includeurl https://raw.githubusercontent.com/RicardoNiepel/C4-PlantUML/master/C4_Component.puml
+
+Container_Boundary(AutomationService, "Automation Service") {
+  Container(Automation, "Automation", "Java, SpringBoot", "Управление автоматизациями")
+  ContainerDb(AutomationStore, "Automation Store", "MongoDB", "Сценарии, версии, метаданные")
+  ContainerQueue(MessageQueue, "MessageQueue", "Kafka", "Шина данных")
+}
+
+Container(Automation, "Automation", "Java, SpringBoot", "Управление автоматизациями") {
+  Component(AutomationApi, "Automation API", "REST", "CRUD сценариев автоматизации, валидация входных данных")
+  Component(TriggerListener, "Event Trigger Listener", "Kafka Consumer", "Получение событий устройств и запуск правил")
+  Component(ScheduleTrigger, "Schedule Trigger", "Scheduler / Quartz", "Запуск правил по расписанию")
+  Component(RuleEvaluator, "Rule Evaluator", "Expression / Rules Engine", "Оценка условий, запуск действий")
+  Component(ActionDispatcher, "Action Dispatcher", "Async Executor", "Вызов действий и интеграций")
+  Component(ScenarioService, "Scenario Service", "Domain Service", "Бизнес-логика правил, валидация")
+  Component(ScenarioRepository, "Scenario Repository", "Repository", "Доступ к правилам")
+}
+
+Container(APIGW, "API Gateway", "Java, SpringBoot", "API Шлюз")
+
+Rel(APIGW, AutomationApi, "CRUD сценариев, запрос статуса автоматизаций", "Web API/REST")
+Rel(AutomationApi, ScenarioService, "CRUD сценариев")
+Rel(ScenarioService, ScenarioRepository, "Чтение / запись сценариев")
+Rel(ScenarioRepository, AutomationStore, "Хранение и чтение сценариев", "DB")
+
+Rel(TriggerListener, MessageQueue, "Чтение событий устройств", "Messaging/Kafka")
+Rel(TriggerListener, RuleEvaluator, "Запуск выполнения правил")
+Rel(ScheduleTrigger, ScenarioRepository, "Загрузка правил с расписанием")
+Rel(ScheduleTrigger, RuleEvaluator, "Запуск выполнения правил по времени")
+
+Rel(RuleEvaluator, ScenarioRepository, "Загрузка правил")
+Rel(RuleEvaluator, ActionDispatcher, "Выполнение действий")
+Rel(ActionDispatcher, MessageQueue, "Отправка действий на устройства", "Messaging/Kafka")
+
+@enduml
