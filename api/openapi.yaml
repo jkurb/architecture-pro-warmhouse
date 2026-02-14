@@ -97,6 +97,8 @@ paths:
                                           created_at: "2025-11-05T14:30:00Z"
                 "401":
                     $ref: "#/components/responses/Unauthorized"
+                "500":
+                    $ref: "#/components/responses/InternalServerError"
 
         post:
             tags: [Device Registry]
@@ -151,6 +153,8 @@ paths:
                     $ref: "#/components/responses/BadRequest"
                 "401":
                     $ref: "#/components/responses/Unauthorized"
+                "500":
+                    $ref: "#/components/responses/InternalServerError"
 
     /devices/{deviceId}:
         get:
@@ -171,6 +175,8 @@ paths:
                     $ref: "#/components/responses/Unauthorized"
                 "404":
                     $ref: "#/components/responses/NotFound"
+                "500":
+                    $ref: "#/components/responses/InternalServerError"
 
         patch:
             tags: [Device Registry]
@@ -205,6 +211,8 @@ paths:
                     $ref: "#/components/responses/Unauthorized"
                 "404":
                     $ref: "#/components/responses/NotFound"
+                "500":
+                    $ref: "#/components/responses/InternalServerError"
 
     # ==================== Telemetry ====================
     /devices/{deviceId}/telemetry:
@@ -274,6 +282,8 @@ paths:
                     $ref: "#/components/responses/Unauthorized"
                 "404":
                     $ref: "#/components/responses/NotFound"
+                "500":
+                    $ref: "#/components/responses/InternalServerError"
 
     # ==================== Device Commands ====================
     /devices/{deviceId}/commands:
@@ -327,6 +337,8 @@ paths:
                     $ref: "#/components/responses/Unauthorized"
                 "404":
                     $ref: "#/components/responses/NotFound"
+                "500":
+                    $ref: "#/components/responses/InternalServerError"
 
 components:
     securitySchemes:
@@ -418,17 +430,51 @@ components:
                 type_id:
                     type: string
                     format: uuid
+                    description: Идентификатор типа устройства
                 house_id:
                     type: string
                     format: uuid
+                    description: Идентификатор дома
                 area_id:
                     type: string
                     format: uuid
                     nullable: true
+                    description: Идентификатор зоны/комнаты (опционально)
                 serial_number:
                     type: string
+                    description: Серийный номер устройства
                 name:
                     type: string
+                    description: Пользовательское имя устройства
+                vendor:
+                    type: string
+                    description: Производитель
+                firmware_version:
+                    type: string
+                    description: Версия прошивки
+                controls:
+                    type: array
+                    description: Элементы управления устройства
+                    items:
+                        type: object
+                        properties:
+                            name:
+                                type: string
+                            type:
+                                type: string
+                            value: {}
+                sensors:
+                    type: array
+                    description: Датчики устройства
+                    items:
+                        type: object
+                        properties:
+                            name:
+                                type: string
+                            type:
+                                type: string
+                            unit:
+                                type: string
 
         DeviceUpdate:
             type: object
@@ -538,6 +584,18 @@ components:
                             value:
                                 code: 404
                                 message: "Устройство не найдено"
+        InternalServerError:
+            description: Внутренняя ошибка сервера
+            content:
+                application/json:
+                    schema:
+                        $ref: "#/components/schemas/Error"
+                    examples:
+                        server_error:
+                            value:
+                                code: 500
+                                message: "Внутренняя ошибка сервера"
+                                details: "Произошла непредвиденная ошибка, попробуйте позже"
 
 security:
     - bearerAuth: []
