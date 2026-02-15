@@ -150,58 +150,91 @@ Kafka выбран для этих сценариев, потому что:
 
 # Задание 5. Работа с docker и docker-compose
 
-Перейдите в apps.
+### Состав сервисов
 
-Там находится приложение-монолит для работы с датчиками температуры. В README.md описано как запустить решение.
+| Сервис            | Технология             | Порт | Описание                                                  |
+|-------------------|------------------------|------|-----------------------------------------------------------|
+| `postgres`        | PostgreSQL 16 (Alpine) | 5432 | База данных, инициализируется скриптом `smart_home/init.sql` |
+| `temperature-api` | Java 25, Spring Boot 3.5 | 8081 | Имитация удалённого датчика — возвращает случайную температуру |
+| `app`             | Go 1.22, Gin           | 8080 | Smart Home API — управление датчиками                     |
 
-Вам нужно:
+### Как запустить
 
-1) сделать простое приложение temperature-api на любом удобном для вас языке программирования, которое при запросе /temperature?location= будет отдавать рандомное значение температуры.
+1. Убедитесь, что установлены **Docker** и **Docker Compose**.
 
-Locations - название комнаты, sensorId - идентификатор названия комнаты
+2. Перейдите в директорию `apps/` и запустите скрипт инициализации:
 
-```
-	// If no location is provided, use a default based on sensor ID
-	if location == "" {
-		switch sensorID {
-		case "1":
-			location = "Living Room"
-		case "2":
-			location = "Bedroom"
-		case "3":
-			location = "Kitchen"
-		default:
-			location = "Unknown"
-		}
-	}
-
-	// If no sensor ID is provided, generate one based on location
-	if sensorID == "" {
-		switch location {
-		case "Living Room":
-			sensorID = "1"
-		case "Bedroom":
-			sensorID = "2"
-		case "Kitchen":
-			sensorID = "3"
-		default:
-			sensorID = "0"
-		}
-	}
+```bash
+cd apps
+./init.sh
 ```
 
-2) Приложение следует упаковать в Docker и добавить в docker-compose. Порт по умолчанию должен быть 8081
+Скрипт автоматически:
+- Соберёт и запустит все контейнеры (`docker-compose up --build -d`)
+- Дождётся готовности PostgreSQL (healthcheck)
+- Выведет информацию о доступности API
 
-3) Кроме того для smart_home приложения требуется база данных - добавьте в docker-compose файл настройки для запуска postgres с указанием скрипта инициализации ./smart_home/init.sql
+### Как проверить
 
-Для проверки можно использовать Postman коллекцию smarthome-api.postman_collection.json и вызвать:
+**1. Проверка temperature-api (порт 8081)**
 
-- Create Sensor
-- Get All Sensors
+Запрос температуры по локации — каждый вызов возвращает случайное значение:
 
-Должно при каждом вызове отображаться разное значение температуры
+```bash
+curl "http://localhost:8081/temperature?location=Living%20Room"
+```
 
-Ревьюер будет проверять точно так же.
+Пример ответа:
+
+```json
+{
+    "value": 22.3,
+    "unit": "°C",
+    "timestamp": "2026-02-15T22:42:40.520Z",
+    "location": "Living Room",
+    "status": "active",
+    "sensor_id": "ext-living-room",
+    "sensor_type": "temperature",
+    "description": "Temperature reading for Living Room: 22.3°C"
+}
+```
+
+**2. Проверка smart_home API (порт 8080)**
+
+Health check:
+
+```bash
+curl http://localhost:8080/health
+```
+
+Создание температурного датчика (Create Sensor):
+
+```bash
+curl -X POST http://localhost:8080/api/v1/sensors \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Living Room Temperature",
+    "type": "temperature",
+    "location": "Living Room",
+    "unit": "°C"
+  }'
+```
+
+Получение всех датчиков (Get All Sensors) — при каждом вызове значение температуры меняется:
+
+```bash
+curl http://localhost:8080/api/v1/sensors
+```
+
+При повторном вызове поле `value` будет отличаться, так как `smart_home` запрашивает актуальные данные из `temperature-api`.
+
+
+### Остановка сервисов
+
+```bash
+docker-compose down
+```
+
 
 
 # **Задание 6. Разработка MVP**
