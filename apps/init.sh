@@ -24,8 +24,27 @@ if ! docker exec smarthome-postgres pg_isready -U postgres > /dev/null 2>&1; the
   exit 1
 fi
 
+# Wait for Kafka to be ready
+echo "Waiting for Kafka to be ready..."
+for i in {1..30}; do
+  if docker exec smarthome-kafka kafka-topics --bootstrap-server kafka:9092 --list > /dev/null 2>&1; then
+    echo "Kafka is ready!"
+    break
+  fi
+  echo "Waiting for Kafka to start... ($i/30)"
+  sleep 2
+done
+
+echo ""
 echo "All services are up and running!"
-echo "The API is available at http://localhost:8080"
+echo ""
+echo "Available services:"
+echo "  - Smart Home API (monolith):  http://localhost:8080"
+echo "  - Temperature API:            http://localhost:8081"
+echo "  - Device Registry:            http://localhost:8082"
+echo "  - Telemetry Service:          http://localhost:8083"
+echo "  - Kafka:                      localhost:9092"
+echo "  - PostgreSQL:                 localhost:5432"
 echo ""
 echo "To view logs, run: docker-compose logs -f"
 echo "To stop the services, run: docker-compose down"

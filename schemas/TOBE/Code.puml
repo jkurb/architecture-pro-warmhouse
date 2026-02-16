@@ -1,0 +1,57 @@
+@startuml
+title Automation Service — сценарии взаимодействия
+
+actor "Пользователь" as User
+participant "API Gateway" as APIGW
+participant "Automation API" as Api
+participant "Scenario Service" as Service
+participant "Scenario Repository" as Repo
+participant "Automation Store\n(MongoDB)" as Store
+participant "MessageQueue\n(Kafka)" as MQ
+participant "Trigger Listener" as Trigger
+participant "Schedule Trigger" as Scheduler
+participant "Rule Evaluator" as Evaluator
+participant "Action Dispatcher" as Dispatcher
+
+== CRUD сценария ==
+User -> APIGW: REST: создать/обновить/получить сценарий
+APIGW -> Api: CRUD сценариев, запрос статуса
+Api -> Service: Обработка (создать/обновить/список)
+Service -> Repo: Чтение / запись сценариев
+Repo -> Store: Чтение / запись сценариев
+Store --> Repo: данные
+Repo --> Service: результат
+Service --> Api: результат
+Api --> APIGW: ответ
+APIGW --> User: ответ
+
+== Срабатывание по событию с устройства ==
+MQ -> Trigger: Событие телеметрии (device event)
+Trigger -> Evaluator: Запуск оценки правил
+Evaluator -> Repo: Загрузка правил (по device/условию)
+Repo -> Store: чтение сценариев
+Store --> Repo: правила
+Repo --> Evaluator: правила
+Evaluator -> Evaluator: Оценка условий
+alt условие выполнено
+    Evaluator -> Dispatcher: Выполнить действия
+    Dispatcher -> MQ: Отправка действий на устройства (команда)
+end
+
+== Срабатывание по расписанию ==
+Scheduler -> Repo: Загрузка правил с расписанием
+Repo -> Store: чтение сценариев
+Store --> Repo: правила с cron/временем
+Repo --> Scheduler: правила
+Scheduler -> Evaluator: Запуск по времени
+Evaluator -> Repo: Загрузка правил
+Repo -> Store: чтение
+Store --> Repo: правила
+Repo --> Evaluator: правила
+Evaluator -> Evaluator: Оценка условий
+alt условие выполнено
+    Evaluator -> Dispatcher: Выполнить действия
+    Dispatcher -> MQ: Отправка действий на устройства
+end
+
+@enduml
