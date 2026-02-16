@@ -18,13 +18,15 @@ import (
 type SensorHandler struct {
 	DB                 *db.DB
 	TemperatureService *services.TemperatureService
+	KafkaProducer      *services.KafkaProducer
 }
 
 // NewSensorHandler creates a new SensorHandler
-func NewSensorHandler(db *db.DB, temperatureService *services.TemperatureService) *SensorHandler {
+func NewSensorHandler(db *db.DB, temperatureService *services.TemperatureService, kafkaProducer *services.KafkaProducer) *SensorHandler {
 	return &SensorHandler{
 		DB:                 db,
 		TemperatureService: temperatureService,
+		KafkaProducer:      kafkaProducer,
 	}
 }
 
@@ -60,6 +62,9 @@ func (h *SensorHandler) GetSensors(c *gin.Context) {
 				sensors[i].Status = tempData.Status
 				sensors[i].LastUpdated = tempData.Timestamp
 				log.Printf("Updated temperature data for sensor %d from external API", sensor.ID)
+
+				// Publish telemetry to Kafka
+				h.publishTelemetry(sensor.ID, "temperature", tempData.Value, tempData.Unit, sensor.Location)
 			} else {
 				log.Printf("Failed to fetch temperature data for sensor %d: %v", sensor.ID, err)
 			}
@@ -92,6 +97,9 @@ func (h *SensorHandler) GetSensorByID(c *gin.Context) {
 			sensor.Status = tempData.Status
 			sensor.LastUpdated = tempData.Timestamp
 			log.Printf("Updated temperature data for sensor %d from external API", sensor.ID)
+
+			// Publish telemetry to Kafka
+			h.publishTelemetry(sensor.ID, "temperature", tempData.Value, tempData.Unit, sensor.Location)
 		} else {
 			log.Printf("Failed to fetch temperature data for sensor %d: %v", sensor.ID, err)
 		}
@@ -210,4 +218,18 @@ func (h *SensorHandler) UpdateSensorValue(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Sensor value updated successfully"})
+}
+
+// DefaultHouseID is a placeholder house UUID used until multi-house support is implemented.
+const DefaultHouseID = "00000000-0000-0000-0000-000000000001"
+
+// publishTelemetry publishes a telemetry event to Kafka asynchronously.
+// The goroutine is tracked by KafkaProducer's WaitGroup so it completes before Close().
+func (h *SensorHandler) publishTelemetry(sensorID int, metricName string, value float64, unit string, location string) {
+	if h.KafkaProducer == nil {
+		return
+	}
+
+	event := services.NewTelemetryEvent(sensorID, DefaultHouseID, metricName, value, unit)
+	h.KafkaProducer.PublishTelemetryAsync(event)
 }

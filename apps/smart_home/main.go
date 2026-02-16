@@ -32,6 +32,11 @@ func main() {
 	temperatureService := services.NewTemperatureService(temperatureAPIURL)
 	log.Printf("Temperature service initialized with API URL: %s\n", temperatureAPIURL)
 
+	// Initialize Kafka producer
+	kafkaBroker := getEnv("KAFKA_BROKER", "kafka:9092")
+	kafkaProducer := services.NewKafkaProducer(kafkaBroker)
+	log.Printf("Kafka producer initialized with broker: %s\n", kafkaBroker)
+
 	// Initialize router
 	router := gin.Default()
 
@@ -46,7 +51,7 @@ func main() {
 	apiRoutes := router.Group("/api/v1")
 
 	// Register sensor routes
-	sensorHandler := handlers.NewSensorHandler(database, temperatureService)
+	sensorHandler := handlers.NewSensorHandler(database, temperatureService, kafkaProducer)
 	sensorHandler.RegisterRoutes(apiRoutes)
 
 	// Start server
@@ -69,12 +74,19 @@ func main() {
 	<-quit
 	log.Println("Shutting down server...")
 
-	// Create a deadline for server shutdown
+	// Step 1: Stop accepting new requests and wait for in-flight handlers to finish.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("Server forced to shutdown: %v\n", err)
+		log.Printf("Server forced to shutdown: %v\n", err)
 	}
+	log.Println("HTTP server stopped")
+
+	// Step 2: Drain in-flight Kafka publishes spawned by handlers, then close the writer.
+	if err := kafkaProducer.Close(); err != nil {
+		log.Printf("Kafka producer close error: %v\n", err)
+	}
+	log.Println("Kafka producer closed")
 
 	log.Println("Server exited properly")
 }

@@ -14,13 +14,11 @@ RUN mvn package -DskipTests -B
 # Runtime stage
 FROM eclipse-temurin:25-jre
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
 
 # Copy the built jar from the builder stage
 COPY --from=builder /app/target/*.jar app.jar
 
-EXPOSE 8081
+EXPOSE 8083
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

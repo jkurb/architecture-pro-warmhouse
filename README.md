@@ -235,15 +235,76 @@ curl http://localhost:8080/api/v1/sensors
 docker-compose down
 ```
 
+Для удаления данных PostgreSQL:
+
+```bash
+docker-compose down -v
+```
 
 
-# **Задание 6. Разработка MVP**
 
-Необходимо создать новые микросервисы и обеспечить их интеграции с существующим монолитом для плавного перехода к микросервисной архитектуре. 
+# Задание 6. Разработка MVP
 
-### **Что нужно сделать**
+### Архитектура
 
-1. Создайте новые микросервисы для управления телеметрией и устройствами (с простейшей логикой), которые будут интегрированы с существующим монолитным приложением. Каждый микросервис на своем ООП языке.
-2. Обеспечьте взаимодействие между микросервисами и монолитом (при желании с помощью брокера сообщений), чтобы постепенно перенести функциональность из монолита в микросервисы. 
+Созданы два новых микросервиса, интегрированных с существующим монолитом через Kafka:
 
-В результате у вас должны быть созданы Dockerfiles и docker-compose для запуска микросервисов. 
+| Сервис | Язык/Фреймворк | Порт | Описание |
+|--------|----------------|------|----------|
+| `smart_home` (монолит) | Go 1.22, Gin | 8080 | Sensor CRUD + Kafka-продюсер телеметрии |
+| `temperature-api` | Java 25, Spring Boot 3.5 | 8081 | Генерация случайной температуры |
+| `device-registry` | Java 25, Spring Boot 3.5 | 8082 | CRUD устройств + Kafka-продюсер событий |
+| `telemetry-service` | Java 25, Spring Boot 3.5 | 8083 | Хранение/выдача телеметрии + Kafka-консьюмер |
+| PostgreSQL | - | 5432 | Общая БД (sensors, devices, telemetry_data) |
+| Kafka | Confluent 7.6 | 9092 | Брокер сообщений |
+
+**Kafka-топики:**
+- `device.events` -- события устройств (device-registry публикует при create/update/delete)
+- `device.telemetry` -- данные телеметрии (монолит публикует при получении температуры, telemetry-service потребляет и сохраняет)
+
+
+
+### Как проверить новые микросервисы
+
+**Device Registry (порт 8082):**
+
+Создать устройство:
+
+```bash
+curl -X POST http://localhost:8082/api/v1/devices \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Thermostat","type":"thermostat","location":"Living Room","serialNumber":"TH-001"}'
+```
+
+Получить все устройства:
+
+```bash
+curl http://localhost:8082/api/v1/devices
+```
+
+**Telemetry Service (порт 8083):**
+
+Сначала создать сенсор и запросить данные через монолит (это опубликует телеметрию в Kafka):
+
+```bash
+curl -X POST http://localhost:8080/api/v1/sensors \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Room Temp","type":"temperature","location":"Room","unit":"°C"}'
+
+curl http://localhost:8080/api/v1/sensors
+```
+
+Затем запросить историю телеметрии:
+
+```bash
+curl http://localhost:8083/api/v1/telemetry/1
+```
+
+Записать телеметрию вручную через REST:
+
+```bash
+curl -X POST http://localhost:8083/api/v1/telemetry \
+  -H "Content-Type: application/json" \
+  -d '{"deviceId":1,"metricName":"temperature","value":22.5,"unit":"°C"}'
+```
+
