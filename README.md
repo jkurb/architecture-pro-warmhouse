@@ -247,20 +247,34 @@ docker-compose down -v
 
 ### Архитектура
 
+
+### Диаграмма последовательности интеграции с монолитом
+
+Интеграция с монолитом происходит через асинхронные события, которые пробрасываются через Kafka в соответсвуйющие сервисы
+- CRUD операции в device-registry
+- Получение температруры в telemetry-service
+
+После обновления всех клиентсих приложений на новое API, можно будет удалить монолит. 
+
+![Sequence MVP](schemas/TOBE/images/Sequence_MVP.png)
+
+Исходник PlantUML: [schemas/TOBE/Sequence_MVP.puml](schemas/TOBE/Sequence_MVP.puml)
+
+
 Созданы два новых микросервиса, интегрированных с существующим монолитом через Kafka:
 
 | Сервис | Язык/Фреймворк | Порт | Описание |
 |--------|----------------|------|----------|
-| `smart_home` (монолит) | Go 1.22, Gin | 8080 | Sensor CRUD + Kafka-продюсер телеметрии |
+| `smart_home` (монолит) | Go 1.22, Gin | 8080 | Sensor CRUD + Kafka-продюсер (телеметрия и события устройств) |
 | `temperature-api` | Java 25, Spring Boot 3.5 | 8081 | Генерация случайной температуры |
-| `device-registry` | Java 25, Spring Boot 3.5 | 8082 | CRUD устройств + Kafka-продюсер событий |
+| `device-registry` | Java 25, Spring Boot 3.5 | 8082 | CRUD устройств + Kafka-консьюмер событий сенсоров + продюсер событий устройств |
 | `telemetry-service` | Java 25, Spring Boot 3.5 | 8083 | Хранение/выдача телеметрии + Kafka-консьюмер |
 | PostgreSQL | - | 5432 | Общая БД (sensors, devices, telemetry_data) |
 | Kafka | Confluent 7.6 | 9092 | Брокер сообщений |
 
 **Kafka-топики:**
-- `device.events` -- события устройств (device-registry публикует при create/update/delete)
-- `device.telemetry` -- данные телеметрии (монолит публикует при получении температуры, telemetry-service потребляет и сохраняет)
+- `device.events` -- монолит публикует события при CRUD-операциях над сенсорами (`SENSOR_CREATED`, `SENSOR_UPDATED`, `SENSOR_DELETED`); Device Registry потребляет и синхронизирует таблицу `devices`. Device Registry также публикует собственные события (`DEVICE_CREATED`, `DEVICE_UPDATED`, `DEVICE_DELETED`) при прямых операциях через REST.
+- `device.telemetry` -- монолит публикует данные телеметрии при получении температуры с внешнего API; Telemetry Service потребляет и сохраняет в `telemetry_data`.
 
 
 

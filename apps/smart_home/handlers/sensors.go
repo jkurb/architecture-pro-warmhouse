@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"smarthome/db"
 	"smarthome/models"
@@ -150,6 +151,7 @@ func (h *SensorHandler) CreateSensor(c *gin.Context) {
 		return
 	}
 
+	h.publishDeviceEvent("SENSOR_CREATED", sensor)
 	c.JSON(http.StatusCreated, sensor)
 }
 
@@ -173,6 +175,7 @@ func (h *SensorHandler) UpdateSensor(c *gin.Context) {
 		return
 	}
 
+	h.publishDeviceEvent("SENSOR_UPDATED", sensor)
 	c.JSON(http.StatusOK, sensor)
 }
 
@@ -184,12 +187,19 @@ func (h *SensorHandler) DeleteSensor(c *gin.Context) {
 		return
 	}
 
+	sensor, err := h.DB.GetSensorByID(context.Background(), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Sensor not found"})
+		return
+	}
+
 	err = h.DB.DeleteSensor(context.Background(), id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
+	h.publishDeviceEvent("SENSOR_DELETED", sensor)
 	c.JSON(http.StatusOK, gin.H{"message": "Sensor deleted successfully"})
 }
 
@@ -232,4 +242,23 @@ func (h *SensorHandler) publishTelemetry(sensorID int, metricName string, value 
 
 	event := services.NewTelemetryEvent(sensorID, DefaultHouseID, metricName, value, unit)
 	h.KafkaProducer.PublishTelemetryAsync(event)
+}
+
+// publishDeviceEvent publishes a sensor CRUD event to the device.events Kafka topic
+// so that Device Registry can synchronise its state with the monolith.
+func (h *SensorHandler) publishDeviceEvent(eventType string, sensor models.Sensor) {
+	if h.KafkaProducer == nil {
+		return
+	}
+
+	event := services.DeviceEvent{
+		EventType:  eventType,
+		DeviceID:   sensor.ID,
+		DeviceName: sensor.Name,
+		DeviceType: string(sensor.Type),
+		Location:   sensor.Location,
+		Status:     sensor.Status,
+		Timestamp:  time.Now().UTC().Format(time.RFC3339),
+	}
+	h.KafkaProducer.PublishDeviceEventAsync(event)
 }

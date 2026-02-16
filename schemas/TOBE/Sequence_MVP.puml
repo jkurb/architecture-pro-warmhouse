@@ -1,0 +1,90 @@
+@startuml
+title Интеграция монолита с микросервисами (MVP)
+
+actor "Пользователь" as User
+participant "Smart Home\n(Монолит)" as Monolith
+participant "Temperature API" as TempAPI
+database "PostgreSQL\n(sensors)" as PG_Sensors
+queue "Kafka\ndevice.events" as KafkaDeviceEvents
+queue "Kafka\ndevice.telemetry" as KafkaTelemetry
+participant "Device Registry" as DeviceRegistry
+database "PostgreSQL\n(devices)" as PG_Devices
+participant "Telemetry Service" as TelemetryService
+database "PostgreSQL\n(telemetry_data)" as PG_Telemetry
+
+== 1. Создание сенсора (CRUD → Device Registry через Kafka) ==
+
+User -> Monolith: POST /api/v1/sensors\n{name, type, location, unit}
+activate Monolith
+Monolith -> PG_Sensors: INSERT INTO sensors
+PG_Sensors --> Monolith: sensor (id, name, ...)
+Monolith ->> KafkaDeviceEvents: SENSOR_CREATED\n{device_id, device_name, device_type, location}
+Monolith --> User: 201 Created {sensor}
+deactivate Monolith
+
+KafkaDeviceEvents -> DeviceRegistry: consume SENSOR_CREATED
+activate DeviceRegistry
+DeviceRegistry -> PG_Devices: INSERT INTO devices
+PG_Devices --> DeviceRegistry: device
+deactivate DeviceRegistry
+
+== 2. Обновление сенсора ==
+
+User -> Monolith: PUT /api/v1/sensors/:id\n{name, location, ...}
+activate Monolith
+Monolith -> PG_Sensors: UPDATE sensors SET ...
+PG_Sensors --> Monolith: sensor
+Monolith ->> KafkaDeviceEvents: SENSOR_UPDATED\n{device_id, device_name, ...}
+Monolith --> User: 200 OK {sensor}
+deactivate Monolith
+
+KafkaDeviceEvents -> DeviceRegistry: consume SENSOR_UPDATED
+activate DeviceRegistry
+DeviceRegistry -> PG_Devices: UPDATE devices SET ...
+deactivate DeviceRegistry
+
+== 3. Удаление сенсора ==
+
+User -> Monolith: DELETE /api/v1/sensors/:id
+activate Monolith
+Monolith -> PG_Sensors: DELETE FROM sensors
+Monolith ->> KafkaDeviceEvents: SENSOR_DELETED\n{device_id}
+Monolith --> User: 200 OK
+deactivate Monolith
+
+KafkaDeviceEvents -> DeviceRegistry: consume SENSOR_DELETED
+activate DeviceRegistry
+DeviceRegistry -> PG_Devices: DELETE FROM devices
+deactivate DeviceRegistry
+
+== 4. Получение сенсоров с телеметрией ==
+
+User -> Monolith: GET /api/v1/sensors
+activate Monolith
+Monolith -> PG_Sensors: SELECT * FROM sensors
+PG_Sensors --> Monolith: sensors[]
+
+loop для каждого temperature-сенсора
+    Monolith -> TempAPI: GET /temperature/{sensorId}
+    TempAPI --> Monolith: {value, unit, status}
+    Monolith ->> KafkaTelemetry: TelemetryEvent\n{device_id, metric_name, value, unit}
+end
+
+Monolith --> User: 200 OK {sensors[]}
+deactivate Monolith
+
+KafkaTelemetry -> TelemetryService: consume TelemetryEvent
+activate TelemetryService
+TelemetryService -> PG_Telemetry: INSERT INTO telemetry_data
+deactivate TelemetryService
+
+== 5. Запрос истории телеметрии ==
+
+User -> TelemetryService: GET /api/v1/telemetry/:deviceId
+activate TelemetryService
+TelemetryService -> PG_Telemetry: SELECT * FROM telemetry_data\nWHERE device_id = :id
+PG_Telemetry --> TelemetryService: telemetry_data[]
+TelemetryService --> User: 200 OK {telemetry[]}
+deactivate TelemetryService
+
+@enduml
